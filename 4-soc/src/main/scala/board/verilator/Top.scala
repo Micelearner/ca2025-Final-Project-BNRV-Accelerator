@@ -13,7 +13,7 @@ import riscv.ImplementationType
 class Top extends Module {
   val io = IO(new CPUBundle)
 
-  val cpu = Module(new CPU(implementation = ImplementationType.ThreeStage))
+  val cpu = Module(new CPU(implementation = ImplementationType.FiveStageFinal))
 
   io.device_select              := 0.U
   cpu.io.debug_read_address     := io.debug_read_address
@@ -32,6 +32,6 @@ class Top extends Module {
 object VerilogGenerator extends App {
   (new ChiselStage).emitVerilog(
     new Top(),
-    Array("--target-dir", "3-pipeline/verilog/verilator")
+    Array("--target-dir", "4-soc/verilog/verilator")
   )
 }

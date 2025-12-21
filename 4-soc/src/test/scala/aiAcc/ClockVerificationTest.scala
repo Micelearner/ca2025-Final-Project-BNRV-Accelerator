@@ -1,8 +1,8 @@
-package riscv.ai
+package aiAcc
 
 import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
-import riscv.ai.peripherals.TFTLCD
+import aiAcc.peripherals.TFTLCD
 
 /**
  * 时钟验证测试套件 - 简化版

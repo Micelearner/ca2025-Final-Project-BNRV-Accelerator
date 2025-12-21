@@ -3,7 +3,7 @@
 // Completed: 2025-11-16
 // Status: ✅ Production Ready - 7/8 tests passing
 
-package riscv.ai.peripherals
+package aiAcc.peripherals
 
 import chisel3._
 import chisel3.util._

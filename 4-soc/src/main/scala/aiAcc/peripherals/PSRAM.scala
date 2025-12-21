@@ -1,4 +1,4 @@
-package riscv.ai.peripherals
+package aiAcc.peripherals
 
 import chisel3._
 import chisel3.util._

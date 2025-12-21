@@ -1,4 +1,4 @@
-package riscv.ai
+package aiAcc
 
 /**
  * Verilog 生成器配置

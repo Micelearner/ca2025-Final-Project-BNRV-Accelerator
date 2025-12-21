@@ -1,7 +1,7 @@
 // TFTLCDTest.scala - TFT LCD Controller Test - Simplified Version
 // Phase 2 of DEV_PLAN_V0.2
 
-package riscv.ai.peripherals
+package aiAcc.peripherals
 
 import chisel3._
 import chiseltest._

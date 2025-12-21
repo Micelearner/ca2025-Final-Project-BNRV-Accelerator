@@ -2,7 +2,7 @@
 // Flash/PSRAM Extension - Phase 1 Day 1
 // Target: 16MB SPI Flash support
 
-package riscv.ai.peripherals
+package aiAcc.peripherals
 
 import chisel3._
 import chisel3.util._

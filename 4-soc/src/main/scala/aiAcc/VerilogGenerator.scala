@@ -1,11 +1,10 @@
-package riscv.ai
+package aiAcc
 
 import circt.stage.ChiselStage
 
 /**
  * 统一的 Verilog 生成器
- * 
- * 生成所有设计的 SystemVerilog 代码
+ * * 生成所有设计的 SystemVerilog 代码
  */
 object VerilogGenerator extends App {
   println("=" * 80)
@@ -18,21 +17,19 @@ object VerilogGenerator extends App {
   val totalDesigns = 1
   
   // 生成单个设计的辅助函数
-  def generateDesign(name: String, generator: => Any, targetDir: String): Boolean = {
+  // 修改點：使用泛型 T 並限制為 RawModule，直接傳遞 generator 避免提前求值
+  def generateDesign[T <: chisel3.RawModule](name: String, generator: => T, targetDir: String): Boolean = {
     println(s"[$successCount/$totalDesigns] 正在生成: $name")
     println(s"  目标目录: $targetDir")
     
     try {
-      generator match {
-        case module: chisel3.Module =>
-          ChiselStage.emitSystemVerilogFile(
-            module,
-            firtoolOpts = GeneratorConfig.getFirtoolOpts,
-            args = Array("--target-dir", targetDir)
-          )
-        case _ =>
-          throw new Exception("Invalid generator type")
-      }
+      // 核心修改：直接傳入 generator (by-name parameter)
+      // ChiselStage 會在內部分配好 Builder context 後才呼叫它
+      ChiselStage.emitSystemVerilogFile(
+        generator,
+        firtoolOpts = GeneratorConfig.getFirtoolOpts,
+        args = Array("--target-dir", targetDir)
+      )
       
       // 后处理
       val mainFile = s"$targetDir/${name}.sv"
@@ -49,6 +46,8 @@ object VerilogGenerator extends App {
       }
     } catch {
       case e: Exception =>
+        // 印出詳細錯誤堆疊以便調試
+        e.printStackTrace()
         println(s"  ❌ 错误: ${e.getMessage}")
         failCount += 1
         false
@@ -60,6 +59,7 @@ object VerilogGenerator extends App {
   println("=" * 80)
   println()
   
+  // 這裡傳入的是一個代碼塊，只有在 generateDesign 內部呼叫 generator 時才會執行
   generateDesign(
     "SimpleEdgeAiSoC",
     new SimpleEdgeAiSoC(),

@@ -1,4 +1,4 @@
-package riscv.ai
+package aiAcc
 
 import chisel3._
 import chiseltest._

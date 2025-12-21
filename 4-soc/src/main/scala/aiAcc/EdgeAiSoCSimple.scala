@@ -13,7 +13,7 @@
 // Generated Verilog: 4290 lines
 // Synthesis: 73,829 cells @ 178MHz (55nm)
 
-package riscv.ai
+package aiAcc
 
 import chisel3._
 import chisel3.util._
@@ -440,7 +440,7 @@ class SimpleBitNetAccel extends Module {
 // ============================================================================
 
 // Import RealUART from peripherals package
-import riscv.ai.peripherals.RealUART
+import aiAcc.peripherals.RealUART
 
 class SimpleUARTWrapper(clockFreq: Int = 100000000, baudRate: Int = 115200) extends Module {
   val io = IO(new Bundle {
@@ -494,7 +494,7 @@ class SimpleGPIO extends Module {
 }
 
 // Import TFTLCD from peripherals package
-import riscv.ai.peripherals.TFTLCD
+import aiAcc.peripherals.TFTLCD
 
 class SimpleLCDWrapper(clockFreq: Int = 100000000, spiFreq: Int = 10000000) extends Module {
   val io = IO(new Bundle {
@@ -649,6 +649,7 @@ class SimpleMemAdapter extends Module {
 // PicoRV32 Wrapper (与原设计相同)
 // ============================================================================
 
+/*
 class SimplePicoRV32 extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clk = Input(Clock())
@@ -670,6 +671,7 @@ class SimplePicoRV32 extends BlackBox with HasBlackBoxResource {
   override def desiredName = "picorv32"
   addResource("/rtl/picorv32.v")
 }
+*/
 
 // ============================================================================
 // Simple EdgeAiSoC - Top Level
@@ -711,39 +713,28 @@ class SimpleEdgeAiSoC(clockFreq: Int = 100000000, baudRate: Int = 115200) extend
   })
   
   // RISC-V 核心
-  val riscv = Module(new SimplePicoRV32())
-  riscv.io.clk := clock
-  riscv.io.resetn := !reset.asBool
-  
-  // 内存接口适配器
-  val memAdapter = Module(new SimpleMemAdapter())
-  memAdapter.io.mem_valid := riscv.io.mem_valid
-  memAdapter.io.mem_instr := riscv.io.mem_instr
-  riscv.io.mem_ready := memAdapter.io.mem_ready
-  memAdapter.io.mem_addr := riscv.io.mem_addr
-  memAdapter.io.mem_wdata := riscv.io.mem_wdata
-  memAdapter.io.mem_wstrb := riscv.io.mem_wstrb
-  riscv.io.mem_rdata := memAdapter.io.mem_rdata
-  
-  // 地址解码器
+  //val riscv = Module(new SimplePicoRV32())
+  val myCpu = Module(new MyCPUWrapper())
   val decoder = Module(new SimpleAddressDecoder())
-  decoder.io.cpu <> memAdapter.io.reg
-  
-  // AI 加速器
+
+  decoder.io.cpu <> myCpu.io.bus
+  io.trap := myCpu.io.trap // fixed
+
   val compactAccel = Module(new SimpleCompactAccel())
   compactAccel.io.reg <> decoder.io.compact
-  
+  io.compact_irq := compactAccel.io.irq 
+
   val bitnetAccel = Module(new SimpleBitNetAccel())
   bitnetAccel.io.reg <> decoder.io.bitnet
-  
-  // 外设
+  io.bitnet_irq := bitnetAccel.io.irq 
+
   val uart = Module(new SimpleUARTWrapper(clockFreq, baudRate))
   uart.io.reg <> decoder.io.uart
-  uart.io.rx := io.uart_rx
-  io.uart_tx := uart.io.tx
-  io.uart_tx_irq := uart.io.tx_irq
-  io.uart_rx_irq := uart.io.rx_irq
-  
+  uart.io.rx := io.uart_rx 
+  io.uart_tx := uart.io.tx 
+  io.uart_tx_irq := uart.io.tx_irq 
+  io.uart_rx_irq := uart.io.rx_irq 
+
   val lcd = Module(new SimpleLCDWrapper(clockFreq, 10000000))
   lcd.io.reg <> decoder.io.lcd
   io.lcd_spi_clk := lcd.io.lcd_spi_clk
@@ -757,50 +748,24 @@ class SimpleEdgeAiSoC(clockFreq: Int = 100000000, baudRate: Int = 115200) extend
   gpio.io.reg <> decoder.io.gpio
   gpio.io.gpio_in := io.gpio_in
   io.gpio_out := gpio.io.gpio_out
-  
-  val flash = Module(new peripherals.SPIFlash())
-  flash.io.addr := decoder.io.flash.addr
-  flash.io.wdata := decoder.io.flash.wdata
-  flash.io.wen := decoder.io.flash.wen
-  flash.io.ren := decoder.io.flash.ren
-  flash.io.valid := decoder.io.flash.valid
-  decoder.io.flash.rdata := flash.io.rdata
-  decoder.io.flash.ready := flash.io.ready
-  io.flash_spi_clk := flash.io.spi_clk
-  io.flash_spi_mosi := flash.io.spi_mosi
-  flash.io.spi_miso := io.flash_spi_miso
-  io.flash_spi_cs := flash.io.spi_cs
-  
-  val psram = Module(new peripherals.PSRAM())
-  psram.io.reg_addr := decoder.io.psram.addr
-  psram.io.reg_wdata := decoder.io.psram.wdata
-  psram.io.reg_wen := decoder.io.psram.wen
-  psram.io.reg_ren := decoder.io.psram.ren
-  decoder.io.psram.rdata := psram.io.reg_rdata
-  decoder.io.psram.ready := true.B  // PSRAM always ready
-  io.psram_spi_clk := psram.io.spi_clk
-  io.psram_spi_cs := psram.io.spi_cs
-  io.psram_spi_mosi := psram.io.spi_mosi
-  psram.io.spi_miso := io.psram_spi_miso
-  io.psram_spi_sio2_out := psram.io.spi_sio2_out
-  io.psram_spi_sio2_oe := psram.io.spi_sio2_oe
-  psram.io.spi_sio2_in := io.psram_spi_sio2_in
-  io.psram_spi_sio3_out := psram.io.spi_sio3_out
-  io.psram_spi_sio3_oe := psram.io.spi_sio3_oe
-  psram.io.spi_sio3_in := io.psram_spi_sio3_in
-  
-  // 中断
-  riscv.io.irq := Cat(
-    Fill(12, false.B),
-    uart.io.rx_irq,
-    uart.io.tx_irq,
-    bitnetAccel.io.irq,
-    compactAccel.io.irq,
-    Fill(16, false.B)
-  )
-  
-  // 调试输出
-  io.trap := riscv.io.trap
-  io.compact_irq := compactAccel.io.irq
-  io.bitnet_irq := bitnetAccel.io.irq
+
+  decoder.io.flash.rdata := 0.U
+  decoder.io.flash.ready := true.B 
+
+  decoder.io.psram.rdata := 0.U 
+  decoder.io.psram.ready := true.B 
+
+  io.flash_spi_clk := false.B 
+  io.flash_spi_mosi := false.B 
+  io.flash_spi_cs := true.B 
+
+  io.psram_spi_clk := false.B 
+  io.psram_spi_cs := true.B 
+  io.psram_spi_mosi := false.B 
+  io.psram_spi_sio2_out := false.B 
+  io.psram_spi_sio2_oe := false.B
+  io.psram_spi_sio3_out := false.B
+  io.psram_spi_sio3_oe := false.B
+
+  myCpu.io.irq_external := uart.io.rx_irq || uart.io.tx_irq || bitnetAccel.io.irq || compactAccel.io.irq
 }

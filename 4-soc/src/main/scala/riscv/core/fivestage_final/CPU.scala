@@ -114,6 +114,8 @@ import riscv.Parameters
 class CPU extends Module {
   val io = IO(new CPUBundle)
 
+  val accel      = Module(new SimpleBitNetAccel)
+
   val ctrl       = Module(new Control)
   val regs       = Module(new RegisterFile)
   val inst_fetch = Module(new InstructionFetch)
@@ -128,6 +130,16 @@ class CPU extends Module {
   val forwarding = Module(new Forwarding)
   val clint      = Module(new CLINT)
   val csr_regs   = Module(new CSR)
+
+  accel.io.addr  := io.output_instruction_address
+  accel.io.wdata := 
+  accel.io.wen   := 
+  accel.io.ren   := 
+  accel.io.valid := 
+  accel.io.ready := 
+  accel.io.reg   := 
+  accel.io.irq   := 
+
 
   ctrl.io.jump_flag              := id.io.if_jump_flag
   ctrl.io.jump_instruction_id    := id.io.ctrl_jump_instruction

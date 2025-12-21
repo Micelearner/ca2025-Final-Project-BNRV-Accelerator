@@ -4,7 +4,7 @@
 // Status: ✅ Production Ready - 8/8 tests passing
 // Optimized for minimal resource usage (< 100K instances)
 
-package riscv.ai.peripherals
+package aiAcc.peripherals
 
 import chisel3._
 import chisel3.util._

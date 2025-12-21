@@ -1,4 +1,4 @@
-package riscv.ai
+package aiAcc
 
 import circt.stage.ChiselStage
 
