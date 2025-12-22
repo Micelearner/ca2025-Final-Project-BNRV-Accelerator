@@ -131,15 +131,20 @@ class CPU extends Module {
   val clint      = Module(new CLINT)
   val csr_regs   = Module(new CSR)
 
-  accel.io.addr  := io.output_instruction_address
-  accel.io.wdata := 
-  accel.io.wen   := 
-  accel.io.ren   := 
-  accel.io.valid := 
-  accel.io.ready := 
-  accel.io.reg   := 
-  accel.io.irq   := 
+  accel.io.addr  := 0.U
+  accel.io.wdata := 0.U
+  accel.io.wen   := false.B
+  accel.io.ren   := false.B
+  accel.io.valid := false.B
+  accel.io.ready := false.B
 
+  //
+  accel.io.rs1_data := id2ex.io.output_reg1_data
+  accel.io.rs2_data := id2ex.io.output_reg2_data
+  accel.io.instruction := id2ex.io.output_instruction
+  accel.io.alu_bnrv  := id2ex.io.alu_bnrv
+
+  //
 
   ctrl.io.jump_flag              := id.io.if_jump_flag
   ctrl.io.jump_instruction_id    := id.io.ctrl_jump_instruction
@@ -229,6 +234,11 @@ class CPU extends Module {
   ex2mem.io.alu_result          := ex.io.mem_alu_result
   ex2mem.io.csr_read_data       := id2ex.io.output_csr_read_data
 
+  //
+  ex2mem.io.alu_result := Mux( accel.io.alu_bnrv, accel.io.mem_bitn_result, ex.io.mem_alu_result)
+  ex2mem.io.reg2_data  := Mux( accel.io.alu_bnrv, 0.U, ex.io.mem_reg2_data)
+  //
+  
   mem.io.alu_result          := ex2mem.io.output_alu_result
   mem.io.reg2_data           := ex2mem.io.output_reg2_data
   mem.io.memory_read_enable  := ex2mem.io.output_memory_read_enable

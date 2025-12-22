@@ -50,7 +50,7 @@ class ID2EX extends Module {
     val output_memory_write_enable    = Output(Bool())
     val output_csr_read_data          = Output(UInt(Parameters.DataWidth))
     //
-    val output_alu_bnrv               = Input(UInt(1.W))
+    val output_alu_bnrv               = Output(UInt(1.W))
     //
   })
   val stall = false.B
