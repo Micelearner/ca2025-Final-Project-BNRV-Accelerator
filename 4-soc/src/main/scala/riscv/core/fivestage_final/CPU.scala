@@ -201,6 +201,9 @@ class CPU extends Module {
   id2ex.io.memory_read_enable     := id.io.ex_memory_read_enable
   id2ex.io.memory_write_enable    := id.io.ex_memory_write_enable
   id2ex.io.csr_read_data          := csr_regs.io.id_reg_read_data
+  //
+  id2ex.io.alu_bnrv               := id.io.alu_bnrv
+  //
 
   ex.io.instruction         := id2ex.io.output_instruction
   ex.io.instruction_address := id2ex.io.output_instruction_address

@@ -28,6 +28,9 @@ class ID2EX extends Module {
     val memory_read_enable     = Input(Bool())
     val memory_write_enable    = Input(Bool())
     val csr_read_data          = Input(UInt(Parameters.DataWidth))
+    //
+    val alu_bnrv               = Input(UInt(1.W))
+    //
 
     val output_instruction            = Output(UInt(Parameters.DataWidth))
     val output_instruction_address    = Output(UInt(Parameters.AddrWidth))
@@ -46,6 +49,9 @@ class ID2EX extends Module {
     val output_memory_read_enable     = Output(Bool())
     val output_memory_write_enable    = Output(Bool())
     val output_csr_read_data          = Output(UInt(Parameters.DataWidth))
+    //
+    val output_alu_bnrv               = Input(UInt(1.W))
+    //
   })
   val stall = false.B
 
@@ -150,4 +156,12 @@ class ID2EX extends Module {
   csr_read_data.io.stall  := stall
   csr_read_data.io.flush  := io.flush
   io.output_csr_read_data := csr_read_data.io.out
+
+  // 
+  val alu_bnrv = Module(new PipelineRegister())
+  alu_bnrv.io.in     := io.alu_bnrv
+  alu_bnrv.io.stall  := stall
+  alu_bnrv.io.flush  := io.flush
+  io.output_alu_bnrv := alu_bnrv.io.out
+  //
 }

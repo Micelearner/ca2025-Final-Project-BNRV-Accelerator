@@ -14,6 +14,9 @@ object InstructionTypes {
   val S  = "b0100011".U
   val RM = "b0110011".U
   val B  = "b1100011".U
+  //
+  val C  = "b0001011".U
+  //
 }
 
 object Instructions {
@@ -25,6 +28,14 @@ object Instructions {
   val csr   = "b1110011".U
   val fence = "b0001111".U
 }
+
+//
+object InstructionsTypeC {
+  val bnsum4    = "b0000000".U
+  val bnstore   = "b0000001".U
+  val bnsum8    = "b0000010".U
+}
+//
 
 object InstructionsTypeL {
   val lb  = "b000".U
@@ -122,6 +133,13 @@ object RegWriteSource {
   val NextInstructionAddress = 3.U(2.W)
 }
 
+//
+object BNRVCore {
+  val Inactive  = 0.U(1.W)
+  val Active    = 1.U(1.W)
+}
+//
+
 class InstructionDecode extends Module {
   val io = IO(new Bundle {
     val instruction               = Input(UInt(Parameters.InstructionWidth))
@@ -152,6 +170,10 @@ class InstructionDecode extends Module {
     val clint_jump_address     = Output(UInt(Parameters.AddrWidth)) // clint.io.jump_address
     val if_jump_flag           = Output(Bool())                     // ctrl.io.jump_flag , inst_fetch.io.jump_flag_id
     val if_jump_address        = Output(UInt(Parameters.AddrWidth)) // inst_fetch.io.jump_address_id
+
+    // 
+    val alu_bnrv = Output(UInt(1.W))
+    //
   })
   val opcode = io.instruction(6, 0)
   val funct3 = io.instruction(14, 12)
@@ -159,6 +181,14 @@ class InstructionDecode extends Module {
   val rd     = io.instruction(11, 7)
   val rs1    = io.instruction(19, 15)
   val rs2    = io.instruction(24, 20)
+
+  //
+  when(opcode === InstructionTypes.C){ 
+    io.alu_bnrv := BNRVCore.Active 
+  }.otherwise {
+    io.alu_bnrv := BNRVCore.Inactive
+  }
+  //
 
   io.regs_reg1_read_address := Mux(opcode === Instructions.lui, 0.U(Parameters.PhysicalRegisterAddrWidth), rs1)
   io.regs_reg2_read_address := rs2
@@ -212,9 +242,14 @@ class InstructionDecode extends Module {
       Instructions.jalr  -> RegWriteSource.NextInstructionAddress
     )
   )
+
+  // Modify for Custom-0
   io.ex_reg_write_enable := (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.I) ||
     (opcode === InstructionTypes.L) || (opcode === Instructions.auipc) || (opcode === Instructions.lui) ||
-    (opcode === Instructions.jal) || (opcode === Instructions.jalr) || (opcode === Instructions.csr)
+    (opcode === Instructions.jal) || (opcode === Instructions.jalr) || (opcode === Instructions.csr) ||
+    (opcode === InstructionTypes.C && funct7 =/= InstructionsTypeC.bnstore)
+  //
+
   io.ex_reg_write_address := io.instruction(11, 7)
   io.ex_csr_address       := io.instruction(31, 20)
   io.ex_csr_write_enable := (opcode === Instructions.csr) && (
