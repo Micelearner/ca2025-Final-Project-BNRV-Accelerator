@@ -11,7 +11,7 @@
 
 package riscv.core
 
-import bus.AXI4LiteSlave
+import bus._
 import chisel3._
 import chisel3.util._
 import chisel3.util.MuxLookup
@@ -44,7 +44,8 @@ class SimpleBitNetAccel extends Module {
   // io.reg.ready := true.B
   axi_slave.io.bundle.read_valid := isRead
   io.irq := false.B
-
+  io.mem_bitn_result := 0.U
+  
   // 寄存器
   val ctrl = RegInit(0.U(32.W))
   val status = RegInit(0.U(32.W))
