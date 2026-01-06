@@ -8,6 +8,34 @@ import chisel3._
 import chisel3.util._
 import riscv.Parameters
 
+object InstructionTypes {
+  val L  = "b0000011".U
+  val I  = "b0010011".U
+  val S  = "b0100011".U
+  val RM = "b0110011".U
+  val B  = "b1100011".U
+  val C  = "b0001011".U // Custom-0 Opcode
+}
+
+object InstructionsTypeC { // Funct7
+  val Sum4  = "b0000000".U;
+  val Store = "b0000001".U;
+  val Sum8  = "b0000010".U;
+}
+
+object BNRVCore {
+  val Inactive = 0.U(1.W)
+  val active   = 1.U(1.W)
+}
+
+object RegWriteSource { // Need to check
+  val ALUResult              = 0.U(3.W)
+  val Memory                 = 1.U(3.W)
+  val CSR                    = 2.U(3.W)
+  val NextInstructionAddress = 3.U(2.W)
+  val BNRV                   = 4.U(3.W)
+}
+
 class InstructionDecode extends Module {
   val io = IO(new Bundle {
     val instruction               = Input(UInt(Parameters.InstructionWidth))
@@ -41,6 +69,7 @@ class InstructionDecode extends Module {
     val clint_jump_address     = Output(UInt(Parameters.AddrWidth)) // clint.io.jump_address
     val if_jump_flag           = Output(Bool())                     // ctrl.io.jump_flag , inst_fetch.io.jump_flag_id
     val if_jump_address        = Output(UInt(Parameters.AddrWidth)) // inst_fetch.io.jump_address_id
+    val alu_bnrv               = Output(UInt(1.W))
   })
   val opcode = io.instruction(6, 0)
   val funct3 = io.instruction(14, 12)
@@ -56,10 +85,20 @@ class InstructionDecode extends Module {
       funct3 === InstructionsTypeCSR.csrrci ||
       funct3 === InstructionsTypeCSR.csrrsi
   )
+
+  // ALU_BNRV 
+  when(opcode === InstructionTypes.C) {
+    io.alu_bnrv := BNRVCore.active
+  }.otherwise {
+    io.alu_bnrv := BNRVCore.Inactive
+  }
+
+  // Modify for Custom-0
   val uses_rs1 = (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.I) ||
     (opcode === InstructionTypes.L) || (opcode === InstructionTypes.S) || (opcode === InstructionTypes.B) ||
-    (opcode === Instructions.jalr) || (opcode === Instructions.csr && !csr_uses_uimm)
-  val uses_rs2 = (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.S) || (opcode === InstructionTypes.B)
+    (opcode === Instructions.jalr) || (opcode === Instructions.csr && !csr_uses_uimm) ||
+    (opcode === InstructionTypes.C)
+  val uses_rs2 = (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.S) || (opcode === InstructionTypes.B) || (opcode === InstructionTypes.C)
 
   io.regs_reg1_read_address := Mux(uses_rs1, rs1, 0.U(Parameters.PhysicalRegisterAddrWidth))
   io.regs_reg2_read_address := Mux(uses_rs2, rs2, 0.U(Parameters.PhysicalRegisterAddrWidth))
@@ -95,8 +134,9 @@ class InstructionDecode extends Module {
     ALUOp1Source.InstructionAddress,
     ALUOp1Source.Register
   )
+  // Modify for Custom-0
   io.ex_aluop2_source := Mux(
-    opcode === InstructionTypes.RM,
+    opcode === InstructionTypes.RM || opcode === InstructionTypes.C,
     ALUOp2Source.Register,
     ALUOp2Source.Immediate
   )
@@ -113,9 +153,13 @@ class InstructionDecode extends Module {
       Instructions.jalr  -> RegWriteSource.NextInstructionAddress
     )
   )
+
+    // Modify for Custom-0
+
   io.ex_reg_write_enable := (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.I) ||
     (opcode === InstructionTypes.L) || (opcode === Instructions.auipc) || (opcode === Instructions.lui) ||
-    (opcode === Instructions.jal) || (opcode === Instructions.jalr) || (opcode === Instructions.csr)
+    (opcode === Instructions.jal) || (opcode === Instructions.jalr) || (opcode === Instructions.csr) ||
+    (opcode === InstructionTypes.C && funct7 =/= InstructionsTypeC.Store)
   io.ex_reg_write_address := io.instruction(11, 7)
   io.ex_csr_address       := io.instruction(31, 20)
   io.ex_csr_write_enable := (opcode === Instructions.csr) && (
