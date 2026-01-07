@@ -13,6 +13,7 @@ object InstructionTypes {
   val S  = "b0100011".U
   val RM = "b0110011".U
   val B  = "b1100011".U
+  val C  = "b0001011".U // Custom-0 Opcode
 }
 
 object Instructions {
@@ -104,6 +105,13 @@ object InstructionsEnv {
   val ebreak = 0x00100073L.U(Parameters.DataWidth)
 }
 
+// Custom BitNet Instructions
+object InstructionsTypeC { // Funct7
+  val Sum4  = "b0000000".U;
+  val Store = "b0000001".U;
+  val Sum8  = "b0000010".U;
+}
+
 object ALUOp1Source {
   val Register           = 0.U(1.W)
   val InstructionAddress = 1.U(1.W)
@@ -114,9 +122,20 @@ object ALUOp2Source {
   val Immediate = 1.U(1.W)
 }
 
-object RegWriteSource {
-  val ALUResult              = 0.U(2.W)
-  val Memory                 = 1.U(2.W)
-  val CSR                    = 2.U(2.W)
+object RegWriteSource { // Need to check
+  val ALUResult              = 0.U(3.W)
+  val Memory                 = 1.U(3.W)
+  val CSR                    = 2.U(3.W)
   val NextInstructionAddress = 3.U(2.W)
+  val BNRV                   = 4.U(3.W)
+}
+
+object BNRVCore {
+  val Inactive = 0.U(1.W)
+  val active   = 1.U(1.W)
+}
+
+object ALUBnrvType {
+  val NoBnrv = 0.U(1.W)
+  val Bnrv   = 1.U(1.W)
 }
