@@ -67,6 +67,7 @@ class ID2EX extends Module {
     val output_memory_write_enable    = Output(Bool())
     val output_csr_read_data          = Output(UInt(Parameters.DataWidth))
     val output_alu_bnrv               = Output(UInt(1.W))
+    val output_funct7                 = Output(UInt(7.W))
   })
   val stall = io.stall
 
@@ -177,4 +178,10 @@ class ID2EX extends Module {
   alu_bnrv.io.stall  := stall
   alu_bnrv.io.flush  := io.flush
   io.output_alu_bnrv := alu_bnrv.io.out
+
+  val funct7 = Module(new PipelineRegister(7))
+  funct7.io.in     := io.instruction(31,25)
+  funct7.io.stall  := stall
+  funct7.io.flush  := io.flush
+  io.output_funct7 := funct7.io.out
 }

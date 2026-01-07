@@ -10,6 +10,7 @@ import riscv.core.ALU
 import riscv.core.ALUControl
 import riscv.Parameters
 
+
 class Execute extends Module {
   val io = IO(new Bundle {
     val instruction         = Input(UInt(Parameters.InstructionWidth))
@@ -24,6 +25,7 @@ class Execute extends Module {
     val forward_from_wb     = Input(UInt(Parameters.DataWidth))
     val reg1_forward        = Input(UInt(2.W))
     val reg2_forward        = Input(UInt(2.W))
+    val alu_bnrv            = Input(UInt(1.W))
 
     val mem_alu_result = Output(UInt(Parameters.DataWidth))
     val mem_reg2_data  = Output(UInt(Parameters.DataWidth))
@@ -52,10 +54,15 @@ class Execute extends Module {
       ForwardingType.ForwardFromWB  -> io.forward_from_wb
     )
   )
+
   alu.io.op1 := Mux(
-    io.aluop1_source === ALUOp1Source.InstructionAddress,
-    io.instruction_address,
-    reg1_data
+    io.alu_bnrv.asBool,
+    0.U,
+    Mux(
+      io.aluop1_source === ALUOp1Source.InstructionAddress,
+      io.instruction_address,
+      reg1_data
+    )
   )
 
   val reg2_data = MuxLookup(
@@ -68,11 +75,47 @@ class Execute extends Module {
     )
   )
   alu.io.op2 := Mux(
-    io.aluop2_source === ALUOp2Source.Immediate,
-    io.immediate,
-    reg2_data
+    io.alu_bnrv.asBool,
+    0.U,
+    Mux(
+      io.aluop2_source === ALUOp2Source.Immediate,
+      io.immediate,
+      reg2_data
+    )
   )
-  io.mem_alu_result := alu.io.result
+
+  val bitnet_accel = Module(new SimpleBitNetAccel())
+  bitnet_accel.io.rs1_data := reg1_data
+  bitnet_accel.io.rs2_data := reg2_data
+  bitnet_accel.io.alu_bnrv := io.alu_bnrv
+  bitnet_accel.io.funct7   := io.instruction(31, 25)
+
+  bitnet_accel.io.axi4_channels.read_address_channel.ARADDR  := 0.U
+  bitnet_accel.io.axi4_channels.read_address_channel.ARVALID := false.B
+  bitnet_accel.io.axi4_channels.read_address_channel.ARPROT  := 0.U
+  bitnet_accel.io.axi4_channels.read_data_channel.RREADY     := false.B
+
+  bitnet_accel.io.axi4_channels.write_address_channel.AWADDR  := 0.U
+  bitnet_accel.io.axi4_channels.write_address_channel.AWVALID := false.B
+  bitnet_accel.io.axi4_channels.write_address_channel.AWPROT  := 0.U
+  bitnet_accel.io.axi4_channels.write_data_channel.WDATA      := 0.U
+  bitnet_accel.io.axi4_channels.write_data_channel.WSTRB      := 0.U
+  bitnet_accel.io.axi4_channels.write_data_channel.WVALID     := false.B
+  bitnet_accel.io.axi4_channels.write_response_channel.BREADY := false.B
+  val bnrv_result = bitnet_accel.io.bitnet_result
+  bitnet_accel.io.busy := false.B
+
+  // Use alu_bnrv to select BNRV result (received from AXI4 Lite) 
+  io.mem_alu_result := MuxLookup(
+    io.alu_bnrv,
+    alu.io.result
+  )(
+    IndexedSeq(
+      ALUBnrvType.Bnrv      -> bnrv_result,
+      ALUBnrvType.NoBnrv    -> alu.io.result
+    )
+  )
+
   io.mem_reg2_data  := reg2_data
   io.csr_write_data := MuxLookup(
     funct3,
