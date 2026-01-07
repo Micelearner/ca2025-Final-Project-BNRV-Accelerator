@@ -16,16 +16,19 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.MuxLookup
 import riscv.Parameters
+import riscv.core.Instructions
 
 class SimpleBitNetAccel extends Module {
   val io = IO(new Bundle {
     val axi4_channels = Flipped(new AXI4LiteChannels(Parameters.AddrBits, Parameters.DataBits))
     val irq = Output(Bool())
 
+    val funct7 = Input(UInt(7.W))
     val rs1_data = Input(UInt(32.W))
     val rs2_data = Input(UInt(32.W))
-    val mem_bitn_result = Output(UInt(32.W))
+    val bitnet_result = Output(UInt(32.W))
     val alu_bnrv = Input(UInt(1.W))
+    val busy = Output(Bool())
   })
   
   // channels
@@ -44,7 +47,6 @@ class SimpleBitNetAccel extends Module {
   // io.reg.ready := true.B
   axi_slave.io.bundle.read_valid := isRead
   io.irq := false.B
-  io.mem_bitn_result := 0.U
   
   // 寄存器
   val ctrl = RegInit(0.U(32.W))
@@ -62,7 +64,7 @@ class SimpleBitNetAccel extends Module {
   val result = Mem(256, SInt(32.W))      // 结果（32-bit）
   
   // 状态机
-  val sIdle :: sCompute :: sFinalize :: sDone :: Nil = Enum(4)
+  val sIdle :: sCompute :: sFinalize :: sDone :: sStore :: Nil = Enum(5) // add sStore state
   val state = RegInit(sIdle)
   
   // 矩阵乘法计算索引 (16x16)
@@ -78,6 +80,9 @@ class SimpleBitNetAccel extends Module {
   // Finalize 计数器 - 等待多个周期确保写入完成
   val finalizeCounter = RegInit(0.U(3.W))
   
+  // for BN.STORE
+  val storetobuffer = Cat(io.rs2_data(7,0), io.rs1_data(7,0))
+  io.busy := (state =/= sIdle)
   // 计算状态机
   switch(state) {
     is(sIdle) {
@@ -90,7 +95,7 @@ class SimpleBitNetAccel extends Module {
           errorCode := 1.U  // 错误代码 1: 矩阵大小超出范围
         }.otherwise {
           // 矩阵大小有效，开始计算
-          state := sCompute
+          // state := sCompute
           perfCycles := 0.U
           sparsitySkipped := 0.U
           i := 0.U
@@ -101,6 +106,35 @@ class SimpleBitNetAccel extends Module {
           errorCode := 0.U
         }
       }
+      when(io.alu_bnrv === BNRVCore.active) {
+          switch(io.funct7) {
+            is(InstructionsTypeC.Store) {
+              state := sStore
+              i := 0.U
+            }
+            is(InstructionsTypeC.Sum4) {
+              state := sCompute
+            }
+            is(InstructionsTypeC.Sum8) {
+              state := sCompute
+            }
+          }
+      }.otherwise {
+        ctrl := 0.U  // 非 BitNet 指令，重置控制寄存器
+        // need to reset other states?
+      }
+    }
+    is(sStore) { // for BN.STORE
+      status := 1.U
+      
+      val currentWeight = (storetobuffer >> (i << 1.U))(1, 0)
+      weight(i) := currentWeight
+
+      when(i === 7.U) {
+        state := sIdle
+      }.otherwise {
+        i := i + 1.U
+      }      
     }
     is(sCompute) {
       status := 1.U
@@ -169,6 +203,7 @@ class SimpleBitNetAccel extends Module {
         state := sDone
       }
     }
+    
     is(sDone) {
       status := 2.U
       io.irq := true.B
@@ -264,4 +299,6 @@ class SimpleBitNetAccel extends Module {
       }
     }
   }
+
+  io.bitnet_result := accumulator.asUInt
 }
