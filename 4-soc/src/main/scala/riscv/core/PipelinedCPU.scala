@@ -411,7 +411,8 @@ class PipelinedCPU extends Module {
   id2ex.io.memory_read_enable     := id.io.ex_memory_read_enable
   id2ex.io.memory_write_enable    := id.io.ex_memory_write_enable
   id2ex.io.csr_read_data          := csr_regs.io.id_reg_read_data
-
+  id2ex.io.alu_bnrv               := id.io.alu_bnrv
+  
   ex.io.instruction         := id2ex.io.output_instruction
   ex.io.instruction_address := id2ex.io.output_instruction_address
   ex.io.reg1_data           := id2ex.io.output_reg1_data
@@ -424,6 +425,7 @@ class PipelinedCPU extends Module {
   ex.io.forward_from_wb     := wb.io.regs_write_data
   ex.io.reg1_forward        := forwarding.io.reg1_forward_ex
   ex.io.reg2_forward        := forwarding.io.reg2_forward_ex
+  ex.io.alu_bnrv            := id2ex.io.output_alu_bnrv
 
   ex2mem.io.stall               := mem_stall
   ex2mem.io.regs_write_enable   := id2ex.io.output_regs_write_enable

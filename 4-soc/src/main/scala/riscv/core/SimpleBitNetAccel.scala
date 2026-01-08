@@ -59,12 +59,13 @@ class SimpleBitNetAccel extends Module {
   
   // BitNet 特性：权重使用 2-bit 编码
   // 00 = 0 (跳过), 01 = +1 (加法), 10 = -1 (减法), 11 = 保留
-  val activation = Mem(256, SInt(32.W))  // 激活值（8-bit 或 32-bit）
+  // val activation = Mem(256, SInt(32.W))  // 激活值（8-bit 或 32-bit）
   val weight = Mem(256, UInt(2.W))       // 权重（2-bit 编码）
-  val result = Mem(256, SInt(32.W))      // 结果（32-bit）
-  
+  // val result = Mem(256, SInt(32.W))      // 结果（32-bit）
+  val rs1_rs2_activation = Cat(io.rs2_data, io.rs1_data).asSInt
+
   // 状态机
-  val sIdle :: sCompute :: sFinalize :: sDone :: sStore :: Nil = Enum(5) // add sStore state
+  val sIdle :: sCompute_SUM4 :: sCompute_SUM8 :: sDone :: sStore :: Nil = Enum(5) // add sStore state
   val state = RegInit(sIdle)
   
   // 矩阵乘法计算索引 (16x16)
@@ -83,6 +84,7 @@ class SimpleBitNetAccel extends Module {
   // for BN.STORE
   val storetobuffer = Cat(io.rs2_data(7,0), io.rs1_data(7,0))
   io.busy := (state =/= sIdle)
+  
   // 计算状态机
   switch(state) {
     is(sIdle) {
@@ -102,7 +104,6 @@ class SimpleBitNetAccel extends Module {
           j := 0.U
           k := 0.U
           accumulator := 0.S
-          finalizeCounter := 0.U
           errorCode := 0.U
         }
       }
@@ -113,10 +114,10 @@ class SimpleBitNetAccel extends Module {
               i := 0.U
             }
             is(InstructionsTypeC.Sum4) {
-              state := sCompute
+              state := sCompute_SUM4
             }
             is(InstructionsTypeC.Sum8) {
-              state := sCompute
+              state := sCompute_SUM8
             }
           }
       }.otherwise {
@@ -136,17 +137,15 @@ class SimpleBitNetAccel extends Module {
         i := i + 1.U
       }      
     }
-    is(sCompute) {
+    is(sCompute_SUM4) {
       status := 1.U
       perfCycles := perfCycles + 1.U
       
-      // BitNet 矩阵乘法: result[i][j] += activation[i][k] * weight[k][j]
       // 权重编码: 00=0, 01=+1, 10=-1
-      val rowStride = 16.U  // 固定行跨度为 16
-      val aIdx = i * rowStride + k
-      val wIdx = k * rowStride + j
-      val aVal = activation(aIdx)
-      val wVal = weight(wIdx)
+      val aIdx = i * 8.U
+      val wIdx = i * 2.U
+      val aVal = (rs1_rs2_activation >> aIdx)(7, 0).asSInt      
+      val wVal = (rs2_data >> wIdx)(1, 0)
       
       // BitNet 核心：根据权重值选择操作（无乘法！）
       val newAccum = Wire(SInt(32.W))
@@ -163,44 +162,48 @@ class SimpleBitNetAccel extends Module {
       }
       
       // 更新索引
-      when(k < matrixSize - 1.U) {
+      when(i < 4.U) {
         // 继续累加
         accumulator := newAccum
-        k := k + 1.U
+        i := i + 1.U
       }.otherwise {
-        // k 循环完成，保存结果
-        val rIdx = i * rowStride + j
-        result(rIdx) := newAccum
-        lastSavedAddr := rIdx
-        lastSavedValue := newAccum
-        
-        // 检查是否是最后一个元素
-        val isLastElement = (i === matrixSize - 1.U) && (j === matrixSize - 1.U)
-        
-        when(isLastElement) {
-          // 最后一个元素，直接进入 finalize
-          state := sFinalize
-        }.otherwise {
-          // 不是最后一个元素，继续计算
-          accumulator := 0.S
-          k := 0.U
-          
-          // 移动到下一个元素
-          when(j < matrixSize - 1.U) {
-            j := j + 1.U
-          }.otherwise {
-            j := 0.U
-            i := i + 1.U
-          }
-        }
+        // i 循环完成，保存结果
+          accumulator := newAccum
+          state := sDone
       }
     }
-    is(sFinalize) {
-      // 等待多个周期，确保最后一次结果写入完成
-      // 这对于 Mem 的写入很重要，特别是最后一行
-      finalizeCounter := finalizeCounter + 1.U
-      when(finalizeCounter >= 3.U) {
-        state := sDone
+    is(sCompute_SUM8) {
+      status := 1.U
+      perfCycles := perfCycles + 1.U
+      
+      // 权重编码: 00=0, 01=+1, 10=-1
+      val aIdx = i * 8.U
+      val aVal = (rs1_rs2_activation >> aIdx)(7, 0).asSInt      
+      val wVal = weight(i)
+      
+      // BitNet 核心：根据权重值选择操作（无乘法！）
+      val newAccum = Wire(SInt(32.W))
+      when(wVal === 1.U) {
+        // 权重 = +1: 加法
+        newAccum := accumulator + aVal
+      }.elsewhen(wVal === 2.U) {
+        // 权重 = -1: 减法
+        newAccum := accumulator - aVal
+      }.otherwise {
+        // 权重 = 0: 跳过（稀疏性优化）
+        newAccum := accumulator
+        sparsitySkipped := sparsitySkipped + 1.U
+      }
+      
+      // 更新索引
+      when(i < 8.U) {
+        // 继续累加
+        accumulator := newAccum
+        i := i + 1.U
+      }.otherwise {
+        // i 循环完成，保存结果
+          accumulator := newAccum
+          state := sDone
       }
     }
     
