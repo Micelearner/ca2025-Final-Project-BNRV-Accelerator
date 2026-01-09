@@ -146,6 +146,8 @@ class PipelinedCPU extends Module {
   // WB stage signals for JAL/JALR hazard detection (pipeline register delay fix)
   ctrl.io.regs_write_source_wb := mem2wb.io.output_regs_write_source
   ctrl.io.rd_wb                := mem2wb.io.output_regs_write_address
+  ctrl.io.alu_bnrv             := id2ex.io.output_alu_bnrv
+  ctrl.io.accel_done           := ex.io.bnrv_done
 
   regs.io.write_enable  := mem2wb.io.output_regs_write_enable
   regs.io.write_address := mem2wb.io.output_regs_write_address
@@ -158,6 +160,7 @@ class PipelinedCPU extends Module {
 
   // Memory stall signal: freeze entire pipeline when AXI4 bus transactions are pending
   val mem_stall = mem.io.ctrl_stall_flag
+  ex.io.mem_stall_input := mem_stall
 
   // Instruction memory interface
   io.instruction_address          := inst_fetch.io.instruction_address
@@ -381,7 +384,7 @@ class PipelinedCPU extends Module {
   id.io.interrupt_handler_address := clint.io.id_interrupt_handler_address
   id.io.branch_hazard             := ctrl.io.branch_hazard
 
-  id2ex.io.stall := mem_stall
+  id2ex.io.stall := mem_stall || ctrl.io.id2ex_stall
   // Do not flush id2ex when mem_stall is active - EXCEPT for JAL/JALR hazards!
   // When the memory is stalling (e.g., multi-cycle store), the id2ex register holds
   // the instruction waiting in EX stage. For load-use hazards, the flush is suppressed
@@ -427,7 +430,7 @@ class PipelinedCPU extends Module {
   ex.io.reg2_forward        := forwarding.io.reg2_forward_ex
   ex.io.alu_bnrv            := id2ex.io.output_alu_bnrv
 
-  ex2mem.io.stall               := mem_stall
+  ex2mem.io.stall               := mem_stall || ctrl.io.ex2mem_stall
   ex2mem.io.regs_write_enable   := id2ex.io.output_regs_write_enable
   ex2mem.io.regs_write_source   := id2ex.io.output_regs_write_source
   ex2mem.io.regs_write_address  := id2ex.io.output_regs_write_address
@@ -609,4 +612,11 @@ class PipelinedCPU extends Module {
   io.axi4_channels.write_response_channel.BREADY := false.B
   io.debug_bus_write_enable                      := false.B
   io.debug_bus_write_data                        := 0.U
+
+  val cpu_debug_cycle = RegInit(0.U(32.W))
+  cpu_debug_cycle := cpu_debug_cycle + 1.U
+
+  when(regs.io.write_enable && regs.io.write_address =/= 0.U) {
+    printf(p"Time:${cpu_debug_cycle} | [WB-Final] RegFile Write! Reg:x${regs.io.write_address} | Data:${regs.io.write_data}\n")
+  }
 }

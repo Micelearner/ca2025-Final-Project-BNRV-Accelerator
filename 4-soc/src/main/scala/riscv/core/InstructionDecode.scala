@@ -8,34 +8,6 @@ import chisel3._
 import chisel3.util._
 import riscv.Parameters
 
-object InstructionTypes {
-  val L  = "b0000011".U
-  val I  = "b0010011".U
-  val S  = "b0100011".U
-  val RM = "b0110011".U
-  val B  = "b1100011".U
-  val C  = "b0001011".U // Custom-0 Opcode
-}
-
-object InstructionsTypeC { // Funct7
-  val Sum4  = "b0000000".U;
-  val Store = "b0000001".U;
-  val Sum8  = "b0000010".U;
-}
-
-object BNRVCore {
-  val Inactive = 0.U(1.W)
-  val active   = 1.U(1.W)
-}
-
-object RegWriteSource { // Need to check
-  val ALUResult              = 0.U(3.W)
-  val Memory                 = 1.U(3.W)
-  val CSR                    = 2.U(3.W)
-  val NextInstructionAddress = 3.U(2.W)
-  val BNRV                   = 4.U(3.W)
-}
-
 class InstructionDecode extends Module {
   val io = IO(new Bundle {
     val instruction               = Input(UInt(Parameters.InstructionWidth))
@@ -88,7 +60,7 @@ class InstructionDecode extends Module {
 
   // ALU_BNRV 
   when(opcode === InstructionTypes.C) {
-    io.alu_bnrv := BNRVCore.active
+    io.alu_bnrv := BNRVCore.Active
   }.otherwise {
     io.alu_bnrv := BNRVCore.Inactive
   }
@@ -154,8 +126,7 @@ class InstructionDecode extends Module {
     )
   )
 
-    // Modify for Custom-0
-
+  // Modify for Custom-0
   io.ex_reg_write_enable := (opcode === InstructionTypes.RM) || (opcode === InstructionTypes.I) ||
     (opcode === InstructionTypes.L) || (opcode === Instructions.auipc) || (opcode === Instructions.lui) ||
     (opcode === Instructions.jal) || (opcode === Instructions.jalr) || (opcode === Instructions.csr) ||
@@ -239,4 +210,17 @@ class InstructionDecode extends Module {
       Instructions.jalr  -> jalr_target
     )
   )
+
+
+  // For Debugging
+  val debug_cycle = RegInit(0.U(32.W))
+  debug_cycle := debug_cycle + 1.U
+
+  when(opcode === "b0001011".U) { // 硬編碼 Custom-0 Opcode 以防 Enum 定義錯誤
+    printf(p"Time:${debug_cycle} | [ID] BNRV Decoded | WriteEn:${io.ex_reg_write_enable} | WriteSrc:${io.ex_reg_write_source} | Rd:${io.ex_reg_write_address}\n")
+  }
+
+  when(opcode === "b0110011".U || opcode === "b0001011".U) { 
+    printf(p"Time:${debug_cycle} | [ID-DEC] Opcode:0x${Hexadecimal(opcode)} | RS1:${rs1} | RS2:${rs2} | RD:${rd}\n")
+  }
 }

@@ -145,7 +145,7 @@ class SimpleBitNetAccel extends Module {
       val aIdx = i * 8.U
       val wIdx = i * 2.U
       val aVal = (rs1_rs2_activation >> aIdx)(7, 0).asSInt      
-      val wVal = (rs2_data >> wIdx)(1, 0)
+      val wVal = (io.rs2_data >> wIdx)(1, 0)
       
       // BitNet 核心：根据权重值选择操作（无乘法！）
       val newAccum = Wire(SInt(32.W))
@@ -237,7 +237,7 @@ class SimpleBitNetAccel extends Module {
       // 激活值写入（32-bit）
       when(regAddr >= 0x100.U && regAddr < 0x300.U) {
         val idx = (regAddr - 0x100.U) >> 2
-        activation(idx) := wData.asSInt
+        // activation(idx) := wData.asSInt
       }
       
       // 权重写入（2-bit 编码）
@@ -275,7 +275,7 @@ class SimpleBitNetAccel extends Module {
       // 激活值读取
       when(regAddr >= 0x100.U && regAddr < 0x300.U) {
         val idx = (regAddr - 0x100.U) >> 2
-        axi_slave.io.bundle.read_data := activation(idx).asUInt
+        axi_slave.io.bundle.read_data := accumulator.asUInt
       }
       
       // 权重读取（解码回 32-bit）
@@ -298,7 +298,7 @@ class SimpleBitNetAccel extends Module {
       // 结果读取
       when(regAddr >= 0x500.U && regAddr < 0x900.U) {
         val idx = (regAddr - 0x500.U) >> 2
-        axi_slave.io.bundle.read_data := result(idx).asUInt
+        axi_slave.io.bundle.read_data := accumulator.asUInt
       }
     }
   }

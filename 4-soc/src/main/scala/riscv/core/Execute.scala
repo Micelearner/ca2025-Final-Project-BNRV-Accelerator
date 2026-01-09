@@ -26,10 +26,12 @@ class Execute extends Module {
     val reg1_forward        = Input(UInt(2.W))
     val reg2_forward        = Input(UInt(2.W))
     val alu_bnrv            = Input(UInt(1.W))
+    val mem_stall_input     = Input(Bool())
 
     val mem_alu_result = Output(UInt(Parameters.DataWidth))
     val mem_reg2_data  = Output(UInt(Parameters.DataWidth))
     val csr_write_data = Output(UInt(Parameters.DataWidth))
+    val bnrv_done      = Output(Bool())
   })
 
   val opcode = io.instruction(6, 0)
@@ -89,6 +91,7 @@ class Execute extends Module {
   bitnet_accel.io.rs2_data := reg2_data
   bitnet_accel.io.alu_bnrv := io.alu_bnrv
   bitnet_accel.io.funct7   := io.instruction(31, 25)
+  bitnet_accel.io.stall    := io.mem_stall_input
 
   bitnet_accel.io.axi4_channels.read_address_channel.ARADDR  := 0.U
   bitnet_accel.io.axi4_channels.read_address_channel.ARVALID := false.B
@@ -102,8 +105,9 @@ class Execute extends Module {
   bitnet_accel.io.axi4_channels.write_data_channel.WSTRB      := 0.U
   bitnet_accel.io.axi4_channels.write_data_channel.WVALID     := false.B
   bitnet_accel.io.axi4_channels.write_response_channel.BREADY := false.B
+
   val bnrv_result = bitnet_accel.io.bitnet_result
-  bitnet_accel.io.busy := false.B
+  io.bnrv_done := bitnet_accel.io.accel_done
 
   // Use alu_bnrv to select BNRV result (received from AXI4 Lite) 
   io.mem_alu_result := MuxLookup(
@@ -130,4 +134,14 @@ class Execute extends Module {
       InstructionsTypeCSR.csrrsi -> io.csr_read_data.|(Cat(0.U(27.W), uimm)),
     )
   )
+
+  // For Debugging
+  val debug_counter = RegInit(0.U(32.W))
+  debug_counter := debug_counter + 1.U
+
+  when(io.alu_bnrv.asBool) {
+    printf(p"Time: ${debug_counter} | [EX] Select: ${io.alu_bnrv} | BitNet_In: ${bnrv_result} | ALU_In: ${alu.io.result} | -> MUX_Out: ${io.mem_alu_result}\n")
+    printf(p"    [EX-Fwd] Fwd1_Sel: ${io.reg1_forward} (0:No, 1:WB, 2:MEM) | Reg1_In: ${io.reg1_data} | Fwd_MEM: ${io.forward_from_mem} | Fwd_WB: ${io.forward_from_wb} | -> Reg1_Final: ${reg1_data}\n")
+    printf(p"    [EX-Fwd] Fwd2_Sel: ${io.reg2_forward} (0:No, 1:WB, 2:MEM) | Reg2_In: ${io.reg2_data} | -> Reg2_Final: ${reg2_data}\n")
+  }
 }

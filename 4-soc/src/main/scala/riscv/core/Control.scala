@@ -231,11 +231,16 @@ class Control extends Module {
     // WB stage signals for JAL/JALR hazard detection
     val regs_write_source_wb = Input(UInt(2.W))                                  // mem2wb.io.output_regs_write_source
     val rd_wb                = Input(UInt(Parameters.PhysicalRegisterAddrWidth)) // mem2wb.io.output_regs_write_address
+    val alu_bnrv             = Input(UInt(1.W))                                  // id2ex.io.output_alu_bnrv
+    val accel_done           = Input(Bool())                                     // execute.io.done
 
     val if_flush = Output(Bool())
     val id_flush = Output(Bool())
     val pc_stall = Output(Bool())
     val if_stall = Output(Bool())
+
+    val id2ex_stall  = Output(Bool())
+    val ex2mem_stall = Output(Bool())
     // Signal to suppress branch decision when RAW hazard exists
     // Without this, branch comparison uses stale forwarded value from wrong pipeline stage
     val branch_hazard = Output(Bool())
@@ -244,6 +249,7 @@ class Control extends Module {
     val jal_jalr_hazard = Output(Bool())
   })
 
+
   // Initialize control signals to default (no stall/flush) state
   io.if_flush        := false.B
   io.id_flush        := false.B
@@ -251,6 +257,10 @@ class Control extends Module {
   io.if_stall        := false.B
   io.branch_hazard   := false.B
   io.jal_jalr_hazard := false.B
+
+  // Initialize control signals to default (no stall) state
+  io.id2ex_stall  := false.B
+  io.ex2mem_stall := false.B
 
   // Detect RAW hazard: branch/jump in ID needs value from EX stage (not yet computed)
   // When this is true, forwarding would get wrong value from MEM stage
@@ -301,6 +311,9 @@ class Control extends Module {
   val jal_jalr_hazard_mem = (io.regs_write_source_mem === RegWriteSource.NextInstructionAddress) &&
     io.rd_mem =/= 0.U &&
     (io.rd_mem === io.rs1_id || io.rd_mem === io.rs2_id)
+
+  // need to stall PC and IF
+  val is_bnrv = io.alu_bnrv === 1.U
 
   // ============ JAL/JALR Hazard in WB Stage ============
   // CRITICAL: Due to pipeline register delay, when JAL/JALR enters WB at a rising edge,
@@ -413,5 +426,11 @@ class Control extends Module {
     io.if_flush := true.B // Flush IF/ID: discard wrong-path fetch
     // Note: No ID flush needed - branch already resolved in ID!
     // This is the key optimization: 1-cycle branch penalty vs 2-cycle
+  }.elsewhen(is_bnrv && !io.accel_done) {
+    // ============ BNRV Busy Hazard ============
+    io.pc_stall        := true.B
+    io.if_stall        := true.B
+    io.id2ex_stall     := true.B
+    io.ex2mem_stall    := true.B
   }
 }
