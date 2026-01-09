@@ -5,6 +5,19 @@
 # Include common build utilities
 include ../common/build.mk
 
+# Default target
+.DEFAULT_GOAL := test
+
+# Simulation variables
+SIM_VCD ?= trace.vcd
+
+# Verilator Flags
+# Add --trace only if WRITE_VCD is set (e.g. WRITE_VCD=1 make sim ...)
+VERILATOR_FLAGS = --exe --cc sim.cpp Top.v
+ifdef WRITE_VCD
+VERILATOR_FLAGS += --trace
+endif
+
 test:
 	cd .. && sbt "project soc" test
 
@@ -18,7 +31,7 @@ verilator:
 			exit 1; \
 		fi; \
 	fi
-	cd verilog/verilator && verilator --exe --cc sim.cpp Top.v \
+	cd verilog/verilator && verilator $(VERILATOR_FLAGS) \
 		-CFLAGS "$$(sdl2-config --cflags)" \
 		-LDFLAGS "$$(sdl2-config --libs)" && \
 		make -C obj_dir -f VTop.mk
@@ -34,6 +47,9 @@ sim: verilator
 		exit 1; \
 	fi
 	@echo "🎮 Running simulation with $(BINARY)..."
+ifdef WRITE_VCD
+	@echo "🌊 Waveform dumping enabled: verilog/verilator/obj_dir/$(SIM_VCD)"
+endif
 	cd verilog/verilator/obj_dir && ./VTop -i ../../../$(BINARY)
 
 check-vga: verilator
@@ -104,6 +120,7 @@ clean:
 	$(RM) verilog/verilator/*.v
 	$(RM) verilog/verilator/*.fir
 	$(RM) verilog/verilator/*.anno.json
+	$(RM) verilog/verilator/*.vcd
 
 distclean: clean
 	$(RM) -r results

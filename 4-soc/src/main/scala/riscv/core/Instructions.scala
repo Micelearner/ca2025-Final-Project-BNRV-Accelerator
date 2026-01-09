@@ -132,7 +132,7 @@ object RegWriteSource { // Need to check
 
 object BNRVCore {
   val Inactive = 0.U(1.W)
-  val active   = 1.U(1.W)
+  val Active   = 1.U(1.W)
 }
 
 object ALUBnrvType {

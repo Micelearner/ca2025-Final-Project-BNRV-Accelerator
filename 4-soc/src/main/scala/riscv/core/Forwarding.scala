@@ -135,4 +135,19 @@ class Forwarding extends Module {
     // No forwarding needed for ID stage rs2
     io.reg2_forward_id := ForwardingType.NoForward
   }
+
+  // --- DEBUG PRINTS ---
+  // 加入計數器以配合其他 Log 的時間軸
+  val debug_cycle = RegInit(0.U(32.W))
+  debug_cycle := debug_cycle + 1.U
+
+// 監控 EX 階段 RS2 Forwarding (BNRV 測試用)
+  when(io.reg2_forward_ex =/= ForwardingType.NoForward) {
+    printf(p"Time:${debug_cycle} | [FWD-EX-RS2] Triggered! Type:${io.reg2_forward_ex} (1:MEM, 2:WB) | rs2_ex:${io.rs2_ex} | rd_mem:${io.rd_mem} (en:${io.reg_write_enable_mem}) | rd_wb:${io.rd_wb} (en:${io.reg_write_enable_wb})\n")
+  }
+
+  // 監控 ID 階段 RS2 Forwarding (ADD 指令測試用 - 關鍵!)
+  when(io.reg2_forward_id =/= ForwardingType.NoForward) {
+    printf(p"Time:${debug_cycle} | [FWD-ID-RS2] Triggered! Type:${io.reg2_forward_id} (1:MEM, 2:WB) | rs2_id:${io.rs2_id} | rd_mem:${io.rd_mem} (en:${io.reg_write_enable_mem}) | rd_wb:${io.rd_wb} (en:${io.reg_write_enable_wb})\n")
+  }
 }
