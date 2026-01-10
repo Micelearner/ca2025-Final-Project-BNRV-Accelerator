@@ -41,6 +41,7 @@ class Top extends Module {
     val uart_rxd       = Input(UInt(1.W))  // UART RX data
     val uart_interrupt = Output(Bool())    // UART interrupt signal
 
+
     val cpu_debug_read_address     = Input(UInt(Parameters.PhysicalRegisterAddrWidth))
     val cpu_debug_read_data        = Output(UInt(Parameters.DataWidth))
     val cpu_csr_debug_read_address = Input(UInt(Parameters.CSRRegisterAddrWidth))
@@ -56,6 +57,9 @@ class Top extends Module {
 
   // UART peripheral (115200 baud standard rate)
   val uart = Module(new Uart(frequency = 50000000, baudRate = 115200))
+
+  // BitNet
+  val bitnet = Module(new riscv.core.SimpleBitNetAccel)
 
   val cpu         = Module(new CPU)
   val dummy       = Module(new DummySlave)
@@ -87,7 +91,8 @@ class Top extends Module {
   bus_switch.io.slaves(0) <> mem_slave.io.channels
   bus_switch.io.slaves(1) <> vga.io.channels
   bus_switch.io.slaves(2) <> uart.io.channels
-  for (i <- 3 until Parameters.SlaveDeviceCount) {
+  bus_switch.io.slaves(3) <> bitnet.io.channels
+  for (i <- 4 until Parameters.SlaveDeviceCount) {
     bus_switch.io.slaves(i) <> dummy.io.channels
   }
 
