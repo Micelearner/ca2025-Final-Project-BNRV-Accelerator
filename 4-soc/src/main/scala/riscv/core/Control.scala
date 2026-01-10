@@ -426,7 +426,10 @@ class Control extends Module {
     io.if_flush := true.B // Flush IF/ID: discard wrong-path fetch
     // Note: No ID flush needed - branch already resolved in ID!
     // This is the key optimization: 1-cycle branch penalty vs 2-cycle
-  }.elsewhen(is_bnrv && !io.accel_done) {
+  }
+
+  // high priority
+  when(is_bnrv && !io.accel_done) {
     // ============ BNRV Busy Hazard ============
     io.pc_stall        := true.B
     io.if_stall        := true.B

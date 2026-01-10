@@ -91,7 +91,6 @@ class Execute extends Module {
   bitnet_accel.io.rs2_data := reg2_data
   bitnet_accel.io.alu_bnrv := io.alu_bnrv
   bitnet_accel.io.funct7   := io.instruction(31, 25)
-  bitnet_accel.io.stall    := io.mem_stall_input
 
   bitnet_accel.io.axi4_channels.read_address_channel.ARADDR  := 0.U
   bitnet_accel.io.axi4_channels.read_address_channel.ARVALID := false.B

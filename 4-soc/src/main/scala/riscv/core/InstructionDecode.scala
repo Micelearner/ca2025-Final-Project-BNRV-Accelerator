@@ -216,7 +216,7 @@ class InstructionDecode extends Module {
   val debug_cycle = RegInit(0.U(32.W))
   debug_cycle := debug_cycle + 1.U
 
-  when(opcode === "b0001011".U) { // 硬編碼 Custom-0 Opcode 以防 Enum 定義錯誤
+  when(opcode === "b0001011".U) { 
     printf(p"Time:${debug_cycle} | [ID] BNRV Decoded | WriteEn:${io.ex_reg_write_enable} | WriteSrc:${io.ex_reg_write_source} | Rd:${io.ex_reg_write_address}\n")
   }
 

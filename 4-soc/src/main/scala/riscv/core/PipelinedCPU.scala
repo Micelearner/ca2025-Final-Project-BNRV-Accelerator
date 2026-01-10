@@ -149,7 +149,11 @@ class PipelinedCPU extends Module {
   ctrl.io.alu_bnrv             := id2ex.io.output_alu_bnrv
   ctrl.io.accel_done           := ex.io.bnrv_done
 
-  regs.io.write_enable  := mem2wb.io.output_regs_write_enable
+  // Memory stall signal: freeze entire pipeline when AXI4 bus transactions are pending
+  val mem_stall = mem.io.ctrl_stall_flag
+  ex.io.mem_stall_input := mem_stall
+
+  regs.io.write_enable  := mem2wb.io.output_regs_write_enable && !mem_stall && !ctrl.io.ex2mem_stall
   regs.io.write_address := mem2wb.io.output_regs_write_address
   regs.io.write_data    := wb.io.regs_write_data
   regs.io.read_address1 := id.io.regs_reg1_read_address
@@ -157,10 +161,6 @@ class PipelinedCPU extends Module {
 
   regs.io.debug_read_address := io.debug_read_address
   io.debug_read_data         := regs.io.debug_read_data
-
-  // Memory stall signal: freeze entire pipeline when AXI4 bus transactions are pending
-  val mem_stall = mem.io.ctrl_stall_flag
-  ex.io.mem_stall_input := mem_stall
 
   // Instruction memory interface
   io.instruction_address          := inst_fetch.io.instruction_address
@@ -458,7 +458,7 @@ class PipelinedCPU extends Module {
   io.memory_bundle.address := 0.U(Parameters.SlaveDeviceCountBits.W) ## mem.io.bus
     .address(Parameters.AddrBits - 1 - Parameters.SlaveDeviceCountBits, 0)
 
-  mem2wb.io.stall               := mem_stall
+  mem2wb.io.stall               := mem_stall || ctrl.io.ex2mem_stall
   mem2wb.io.instruction_address := ex2mem.io.output_instruction_address
   mem2wb.io.alu_result          := ex2mem.io.output_alu_result
   // Use MEM stage's latched outputs instead of ex2mem outputs for ALL writeback signals
@@ -613,6 +613,7 @@ class PipelinedCPU extends Module {
   io.debug_bus_write_enable                      := false.B
   io.debug_bus_write_data                        := 0.U
 
+  // For Debugging
   val cpu_debug_cycle = RegInit(0.U(32.W))
   cpu_debug_cycle := cpu_debug_cycle + 1.U
 
