@@ -148,6 +148,9 @@ class PipelinedCPU extends Module {
   ctrl.io.rd_wb                := mem2wb.io.output_regs_write_address
   ctrl.io.alu_bnrv             := id2ex.io.output_alu_bnrv
   ctrl.io.accel_done           := ex.io.bnrv_done
+  // from CPU.scala
+  ctrl.io.accel_busy := io.accel_busy_input
+
 
   // Memory stall signal: freeze entire pipeline when AXI4 bus transactions are pending
   val mem_stall = mem.io.ctrl_stall_flag
@@ -416,6 +419,15 @@ class PipelinedCPU extends Module {
   id2ex.io.csr_read_data          := csr_regs.io.id_reg_read_data
   id2ex.io.alu_bnrv               := id.io.alu_bnrv
   
+
+  // connect bnrv
+  io.alu_bnrv := id2ex.io.output_alu_bnrv
+  io.rs1_data := ex.io.output_rs1_data
+  io.rs2_data := ex.io.output_rs2_data
+  io.funct7   := id2ex.io.output_instruction(31, 25)
+
+  ex.io.bnrv_result_external := io.bnrv_result_input
+
   ex.io.instruction         := id2ex.io.output_instruction
   ex.io.instruction_address := id2ex.io.output_instruction_address
   ex.io.reg1_data           := id2ex.io.output_reg1_data
@@ -441,6 +453,7 @@ class PipelinedCPU extends Module {
   ex2mem.io.memory_write_enable := id2ex.io.output_memory_write_enable
   ex2mem.io.alu_result          := ex.io.mem_alu_result
   ex2mem.io.csr_read_data       := id2ex.io.output_csr_read_data
+
 
   mem.io.alu_result          := ex2mem.io.output_alu_result
   mem.io.reg2_data           := ex2mem.io.output_reg2_data
@@ -619,5 +632,22 @@ class PipelinedCPU extends Module {
 
   when(regs.io.write_enable && regs.io.write_address =/= 0.U) {
     printf(p"Time:${cpu_debug_cycle} | [WB-Final] RegFile Write! Reg:x${regs.io.write_address} | Data:${regs.io.write_data}\n")
+  }
+
+  when(cpu_debug_cycle > 20.U && cpu_debug_cycle < 50.U) {
+    printf(p"Time:${cpu_debug_cycle} | [PIPE-TRACE] \n")
+    
+    // 1. EX Stage 輸出: 檢查 MUX 是否選到了 BitNet 的結果 
+    printf(p"  EX_Out   : ALU_Res=${ex.io.mem_alu_result}  | BNRV_Sel=${id2ex.io.output_alu_bnrv}\n")
+    
+    // 2. EX/MEM Pipeline Register: 檢查資料是否順利進入 MEM 階段
+    printf(p"  MEM_In   : ALU_Res=${ex2mem.io.output_alu_result} | RegWrEn=${ex2mem.io.output_regs_write_enable} | Dest=x${ex2mem.io.output_regs_write_address}\n")
+    
+    // 3. MEM/WB Pipeline Register: 檢查資料是否順利進入 WB 階段
+    printf(p"  WB_In    : ALU_Res=${mem2wb.io.output_alu_result} | RegWrEn=${mem2wb.io.output_regs_write_enable} | Src=${mem2wb.io.output_regs_write_source}\n")
+    
+    // 4. WB Stage 寫入: 最終寫回暫存器的值
+    printf(p"  WB_Final : Data=${wb.io.regs_write_data} | WriteEn=${regs.io.write_enable}\n")
+    printf(p"----------------------------------------------------------------\n")
   }
 }

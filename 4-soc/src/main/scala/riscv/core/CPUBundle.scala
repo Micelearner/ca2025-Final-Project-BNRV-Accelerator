@@ -36,4 +36,16 @@ class CPUBundle extends Bundle {
   val bus_address            = Output(UInt(Parameters.AddrWidth))
   val debug_bus_write_enable = Output(Bool())
   val debug_bus_write_data   = Output(UInt(Parameters.DataWidth))
+
+  // check whether Axi_bus is free
+  val accel_busy_input = Input(Bool())
+
+  // Modify bitnet input from ex stage to top level
+  val alu_bnrv = Output(UInt(1.W))
+  val rs1_data = Output(UInt(Parameters.DataWidth))
+  val rs2_data = Output(UInt(Parameters.DataWidth))
+  val funct7   = Output(UInt(7.W))
+
+  // result of BN Accel
+  val bnrv_result_input = Input(UInt(Parameters.DataWidth))
 }

@@ -19,7 +19,7 @@ import riscv.Parameters
  *   Slave 0: 0x0000_0000 - 0x1FFF_FFFF (Main Memory)
  *   Slave 1: 0x2000_0000 - 0x3FFF_FFFF (VGA Controller)
  *   Slave 2: 0x4000_0000 - 0x5FFF_FFFF (UART Controller)
- *   Slave 3: 0x6000_0000 - 0x7FFF_FFFF (Reserved/DummySlave)
+ *   Slave 3: 0x6000_0000 - 0x7FFF_FFFF (BitNet)
  *   Slave 4: 0x8000_0000 - 0x9FFF_FFFF (Reserved/DummySlave)
  *   Slave 5: 0xA000_0000 - 0xBFFF_FFFF (Reserved/DummySlave)
  *   Slave 6: 0xC000_0000 - 0xDFFF_FFFF (Reserved/DummySlave)

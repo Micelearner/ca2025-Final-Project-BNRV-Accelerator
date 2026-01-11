@@ -193,8 +193,11 @@ class SimpleBitNetAccel extends Module {
       status := 2.U
       io.irq := true.B
       
-      state := sIdle
       io.accel_done := true.B
+      
+     when(!io.alu_bnrv.asBool) {
+        state := sIdle
+      }
     }
   }
 
@@ -211,7 +214,8 @@ class SimpleBitNetAccel extends Module {
     when(isRead) {
       switch(regAddr) {
         is(0x00.U) { axi_slave.io.bundle.read_data := ctrl }
-        // ...
+        is(0x04.U) { axi_slave.io.bundle.read_data := status}
+        //...
       }
     }
   }

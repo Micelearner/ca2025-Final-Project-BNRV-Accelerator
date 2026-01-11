@@ -28,10 +28,17 @@ class Execute extends Module {
     val alu_bnrv            = Input(UInt(1.W))
     val mem_stall_input     = Input(Bool())
 
+    // Result from Top level
+    val bnrv_result_external = Input(UInt(Parameters.DataWidth))
+
     val mem_alu_result = Output(UInt(Parameters.DataWidth))
     val mem_reg2_data  = Output(UInt(Parameters.DataWidth))
     val csr_write_data = Output(UInt(Parameters.DataWidth))
     val bnrv_done      = Output(Bool())
+
+    // Forwarding for bnrv
+    val output_rs1_data = Output(UInt(Parameters.DataWidth))
+    val output_rs2_data = Output(UInt(Parameters.DataWidth))
   })
 
   val opcode = io.instruction(6, 0)
@@ -86,27 +93,9 @@ class Execute extends Module {
     )
   )
 
-  val bitnet_accel = Module(new SimpleBitNetAccel())
-  bitnet_accel.io.rs1_data := reg1_data
-  bitnet_accel.io.rs2_data := reg2_data
-  bitnet_accel.io.alu_bnrv := io.alu_bnrv
-  bitnet_accel.io.funct7   := io.instruction(31, 25)
 
-  bitnet_accel.io.axi4_channels.read_address_channel.ARADDR  := 0.U
-  bitnet_accel.io.axi4_channels.read_address_channel.ARVALID := false.B
-  bitnet_accel.io.axi4_channels.read_address_channel.ARPROT  := 0.U
-  bitnet_accel.io.axi4_channels.read_data_channel.RREADY     := false.B
-
-  bitnet_accel.io.axi4_channels.write_address_channel.AWADDR  := 0.U
-  bitnet_accel.io.axi4_channels.write_address_channel.AWVALID := false.B
-  bitnet_accel.io.axi4_channels.write_address_channel.AWPROT  := 0.U
-  bitnet_accel.io.axi4_channels.write_data_channel.WDATA      := 0.U
-  bitnet_accel.io.axi4_channels.write_data_channel.WSTRB      := 0.U
-  bitnet_accel.io.axi4_channels.write_data_channel.WVALID     := false.B
-  bitnet_accel.io.axi4_channels.write_response_channel.BREADY := false.B
-
-  val bnrv_result = bitnet_accel.io.bitnet_result
-  io.bnrv_done := bitnet_accel.io.accel_done
+  val bnrv_result = io.bnrv_result_external
+  io.bnrv_done := false.B
 
   // Use alu_bnrv to select BNRV result (received from AXI4 Lite) 
   io.mem_alu_result := MuxLookup(
@@ -133,6 +122,10 @@ class Execute extends Module {
       InstructionsTypeCSR.csrrsi -> io.csr_read_data.|(Cat(0.U(27.W), uimm)),
     )
   )
+  
+  // Forwarding for bnrv
+  io.output_rs1_data := reg1_data
+  io.output_rs2_data := reg2_data
 
   // For Debugging
   val debug_counter = RegInit(0.U(32.W))

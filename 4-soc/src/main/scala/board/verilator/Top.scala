@@ -15,6 +15,8 @@ import peripheral.Uart
 import peripheral.VGA
 import riscv.core.CPU
 import riscv.Parameters
+import riscv.core.SimpleBitNetAccel
+
 
 class Top extends Module {
   val io = IO(new Bundle {
@@ -78,8 +80,20 @@ class Top extends Module {
   cpu.io.memory_bundle.busy                := false.B
   cpu.io.memory_bundle.granted             := false.B
 
+  cpu.io.accel_busy_input := false.B
+
   // Bus arbiter
   bus_arbiter.io.bus_request(0) := true.B
+
+  // BitNet
+  val BitNet = Module(new SimpleBitNetAccel)
+
+  BitNet.io.alu_bnrv := cpu.io.alu_bnrv
+  BitNet.io.rs1_data := cpu.io.rs1_data
+  BitNet.io.rs2_data := cpu.io.rs2_data
+  BitNet.io.funct7   := cpu.io.funct7
+
+  cpu.io.bnrv_result_input := BitNet.io.bitnet_result
 
   // Bus switch
   bus_switch.io.master <> cpu.io.axi4_channels
@@ -87,7 +101,8 @@ class Top extends Module {
   bus_switch.io.slaves(0) <> mem_slave.io.channels
   bus_switch.io.slaves(1) <> vga.io.channels
   bus_switch.io.slaves(2) <> uart.io.channels
-  for (i <- 3 until Parameters.SlaveDeviceCount) {
+  bus_switch.io.slaves(3) <> BitNet.io.axi4_channels
+  for (i <- 4 until Parameters.SlaveDeviceCount) {
     bus_switch.io.slaves(i) <> dummy.io.channels
   }
 

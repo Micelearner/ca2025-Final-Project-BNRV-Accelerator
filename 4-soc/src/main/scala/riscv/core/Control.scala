@@ -234,6 +234,8 @@ class Control extends Module {
     val alu_bnrv             = Input(UInt(1.W))                                  // id2ex.io.output_alu_bnrv
     val accel_done           = Input(Bool())                                     // execute.io.done
 
+    val accel_busy = Input(Bool())
+
     val if_flush = Output(Bool())
     val id_flush = Output(Bool())
     val pc_stall = Output(Bool())
@@ -429,7 +431,7 @@ class Control extends Module {
   }
 
   // high priority
-  when(is_bnrv && !io.accel_done) {
+  when(is_bnrv && io.accel_busy) {
     // ============ BNRV Busy Hazard ============
     io.pc_stall        := true.B
     io.if_stall        := true.B
