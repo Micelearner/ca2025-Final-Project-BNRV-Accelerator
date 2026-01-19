@@ -43,6 +43,8 @@ class CPU(val implementation: Int = ImplementationType.FiveStageFinal) extends M
       val alu_bnrv_to_accel = Wire(UInt(1.W))
       alu_bnrv_to_accel := Mux(bn_state === sBnDone, 0.U, cpu.io.alu_bnrv)
       
+      
+
       // BitNet insturction asserts  
       val is_bn_instr = alu_bnrv_to_accel.asBool
 
@@ -72,7 +74,7 @@ class CPU(val implementation: Int = ImplementationType.FiveStageFinal) extends M
         
         is(sBnReadWait) {
           bn_hijack_bus := true.B
-          
+          bn_req_addr   := BN_STATUS_ADDR
           // Wait for Read Valid
           when(axi_master.io.bundle.read_valid) {
             when(axi_master.io.bundle.read_data === BN_STATUS_DONE) {
