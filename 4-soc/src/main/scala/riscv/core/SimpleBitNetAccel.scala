@@ -54,12 +54,15 @@ class SimpleBitNetAccel extends Module {
   val weight = Reg(Vec(256, UInt(2.W)))
   val bnSum4_activation = latched_rs1_data.asSInt
   val bnSum8_activation = Cat(latched_rs2_data, latched_rs1_data).asSInt
-  val storetobuffer = Cat(latched_rs2_data(7,0), latched_rs1_data(7,0))
+
+  val useUpper = RegInit(false.B) 
+
+  val storetobuffer = Cat(latched_rs2_data(15,0), latched_rs1_data(15,0))
 
   // 状态机
   val sIdle :: sCompute_SUM4 :: sCompute_SUM8 :: sDone :: sStore :: Nil = Enum(5) // add sStore state
   val state = RegInit(sIdle)
-  
+
   // default outputs
   axi_slave.io.bundle.read_data := 0.U
   axi_slave.io.bundle.read_valid := isRead
@@ -88,7 +91,6 @@ class SimpleBitNetAccel extends Module {
         sparsitySkipped := 0.U
         latched_rs1_data := io.rs1_data
         latched_rs2_data := io.rs2_data
-        printf(p"Time: ${cycle_count} | [BN-LATCH] Latching Inputs! RS1=${io.rs1_data} | RS2=${io.rs2_data}\n")
         switch(io.funct7) {
           is(InstructionsTypeC.Store) {
             state := sStore
@@ -110,16 +112,12 @@ class SimpleBitNetAccel extends Module {
       status := 1.U
       perfCycles := perfCycles + 1.U
 
-      val currentWeight = (storetobuffer >> (i << 1.U))(1, 0)
-      weight(i) := currentWeight
-
-      printf(p"Time: ${cycle_count} | [STORE] i: ${i} | Writing Weight: ${currentWeight} to weight(${i})\n")
-
-      when(i === 7.U) {
-        state := sDone
-      }.otherwise {
-        i := i + 1.U
+      // val currentWeight = (storetobuffer >> (i << 1.U))(1, 0)
+      for (idx <- 0 until 16) {
+        weight(idx) := (storetobuffer >> (idx * 2))(1, 0)
       }
+      useUpper := false.B
+      state := sDone
     }
 
     is(sCompute_SUM4) {
@@ -127,68 +125,86 @@ class SimpleBitNetAccel extends Module {
       perfCycles := perfCycles + 1.U
 
       // 权重编码: 00=0, 01=+1, 10=-1
-      val aIdx = i * 8.U
-      val wIdx = i * 2.U
-      val aVal = (bnSum4_activation >> aIdx)(7, 0).asSInt      
-      val wVal = (latched_rs2_data >> wIdx)(1, 0)
-      
-      
-      // BitNet 核心：根据权重值选择操作（无乘法！）
-      val newAccum = Wire(SInt(32.W))
-      when(wVal === 1.U) {
-        // 权重 = +1: 加法
-        newAccum := accumulator + aVal
-      }.elsewhen(wVal === 2.U) {
-        // 权重 = -1: 减法
-        newAccum := accumulator - aVal
-      }.otherwise {
-        // 权重 = 0: 跳过（稀疏性优化）
-        newAccum := accumulator
-        sparsitySkipped := sparsitySkipped + 1.U
-      }
+      // val aIdx = i * 8.U
+      // val wIdx = i * 2.U
+      // val aVal = (bnSum4_activation >> aIdx)(7, 0).asSInt      
+      // val wVal = (latched_rs2_data >> wIdx)(1, 0)
+      val a0 = latched_rs1_data(7,0).asSInt
+      val a1 = latched_rs1_data(15,8).asSInt
+      val a2 = latched_rs1_data(23,16).asSInt
+      val a3 = latched_rs1_data(31,24).asSInt
 
-      accumulator := newAccum
+      val w0 = latched_rs2_data(1,0)
+      val w1 = latched_rs2_data(3,2)
+      val w2 = latched_rs2_data(5,4)
+      val w3 = latched_rs2_data(7,6)
 
-      when(i === 3.U) {
-        state := sDone
-      }.otherwise {
-        i := i + 1.U
+      def contrib(a: SInt, w: UInt): SInt = {
+        val out = Wire(SInt(32.W))
+        when(w === 1.U) { out := a }        // +1
+        .elsewhen(w === 2.U) { out := -a } // -1
+        .otherwise { out := 0.S }          // 0 or reserved
+        out
       }
+      val c0 = contrib(a0, w0)
+      val c1 = contrib(a1, w1)
+      val c2 = contrib(a2, w2)
+      val c3 = contrib(a3, w3)
+      accumulator := c0 + c1 + c2 + c3
+      
+      state := sDone
     }
 
     is(sCompute_SUM8) {
       status := 1.U
       perfCycles := perfCycles + 1.U
       
-      // 权重编码: 00=0, 01=+1, 10=-1
-      val aIdx = i * 8.U
-      val aVal = (bnSum8_activation >> aIdx)(7, 0).asSInt      
-      val wVal = weight(i)
-      printf(p"Time: ${cycle_count} | [SUM8] i: ${i} | Weight: ${wVal} | Act: ${aVal} | Accum: ${accumulator}\n")
+      /// 8 activations from Cat(latched_rs2_data, latched_rs1_data)
+      val a0 = bnSum8_activation(7,0).asSInt
+      val a1 = bnSum8_activation(15,8).asSInt
+      val a2 = bnSum8_activation(23,16).asSInt
+      val a3 = bnSum8_activation(31,24).asSInt
+      val a4 = bnSum8_activation(39,32).asSInt
+      val a5 = bnSum8_activation(47,40).asSInt
+      val a6 = bnSum8_activation(55,48).asSInt
+      val a7 = bnSum8_activation(63,56).asSInt
 
-      // BitNet 核心：根据权重值选择操作（无乘法！）
-      val newAccum = Wire(SInt(32.W))
-      when(wVal === 1.U) {
-        // 权重 = +1: 加法
-        newAccum := accumulator + aVal
-      }.elsewhen(wVal === 2.U) {
-        // 权重 = -1: 减法
-        newAccum := accumulator - aVal
-      }.otherwise {
-        // 权重 = 0: 跳过（稀疏性优化）
-        newAccum := accumulator
-        sparsitySkipped := sparsitySkipped + 1.U
+      // 8 weights from buffer
+      val base = Mux(useUpper, 8.U, 0.U)
+      val w0 = weight(base + 0.U)
+      val w1 = weight(base + 1.U)
+      val w2 = weight(base + 2.U)
+      val w3 = weight(base + 3.U)
+      val w4 = weight(base + 4.U)
+      val w5 = weight(base + 5.U)
+      val w6 = weight(base + 6.U)
+      val w7 = weight(base + 7.U)
+      useUpper := !useUpper
+      
+
+
+      def contrib(a: SInt, w: UInt): SInt = {
+        val out = Wire(SInt(32.W))
+        when(w === 1.U) { out := a }        // +1
+        .elsewhen(w === 2.U) { out := -a } // -1
+        .otherwise { out := 0.S }          // 0 or reserved
+        out
       }
+      val c0 = contrib(a0, w0)
+      val c1 = contrib(a1, w1)
+      val c2 = contrib(a2, w2)
+      val c3 = contrib(a3, w3)
+      val c4 = contrib(a4, w4)
+      val c5 = contrib(a5, w5)
+      val c6 = contrib(a6, w6)
+      val c7 = contrib(a7, w7)
 
-      accumulator := newAccum
 
-      when(i === 7.U) {
-          state := sDone
-      }.otherwise {
-        // 更新索引，继续累加
-          i := i + 1.U
-      }
+      accumulator := c0 + c1 + c2 + c3 + c4 + c5 + c6 + c7
+
+      state := sDone
     }
+
     is(sDone) {
       status := 2.U
       io.irq := true.B
@@ -224,18 +240,5 @@ class SimpleBitNetAccel extends Module {
 
 
 
-  when(io.alu_bnrv.asBool || state =/= sIdle) {
-    printf(p"Time: ${cycle_count} | State: ${state} | F7: ${io.funct7} | ResReg: ${io.bitnet_result} | Done: ${io.accel_done}\n")
-  }
-
-  when(state === sCompute_SUM4 || state === sCompute_SUM8) {
-    val current_wVal = Mux(state === sCompute_SUM4, 
-                          (latched_rs2_data >> (i * 2.U))(1, 0), 
-                          weight(i))
-    val current_aVal = Mux(state === sCompute_SUM4,
-                          (bnSum4_activation >> (i * 8.U))(7, 0).asSInt,
-                          (bnSum8_activation >> (i * 8.U))(7, 0).asSInt)
-    
-    printf(p"Time: ${cycle_count} | State: ${state} | i: ${i} | Accum: ${accumulator} | W_bits: ${current_wVal} | Act: ${current_aVal}\n")
-  }
+  
 }

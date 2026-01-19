@@ -127,13 +127,5 @@ class Execute extends Module {
   io.output_rs1_data := reg1_data
   io.output_rs2_data := reg2_data
 
-  // For Debugging
-  val debug_counter = RegInit(0.U(32.W))
-  debug_counter := debug_counter + 1.U
-
-  when(io.alu_bnrv.asBool) {
-    printf(p"Time: ${debug_counter} | [EX] Select: ${io.alu_bnrv} | BitNet_In: ${bnrv_result} | ALU_In: ${alu.io.result} | -> MUX_Out: ${io.mem_alu_result}\n")
-    printf(p"    [EX-Fwd] Fwd1_Sel: ${io.reg1_forward} (0:No, 1:WB, 2:MEM) | Reg1_In: ${io.reg1_data} | Fwd_MEM: ${io.forward_from_mem} | Fwd_WB: ${io.forward_from_wb} | -> Reg1_Final: ${reg1_data}\n")
-    printf(p"    [EX-Fwd] Fwd2_Sel: ${io.reg2_forward} (0:No, 1:WB, 2:MEM) | Reg2_In: ${io.reg2_data} | -> Reg2_Final: ${reg2_data}\n")
-  }
+  
 }

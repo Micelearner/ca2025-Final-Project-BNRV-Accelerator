@@ -630,24 +630,9 @@ class PipelinedCPU extends Module {
   val cpu_debug_cycle = RegInit(0.U(32.W))
   cpu_debug_cycle := cpu_debug_cycle + 1.U
 
-  when(regs.io.write_enable && regs.io.write_address =/= 0.U) {
-    printf(p"Time:${cpu_debug_cycle} | [WB-Final] RegFile Write! Reg:x${regs.io.write_address} | Data:${regs.io.write_data}\n")
-  }
+  val target_pc = "h1254".U
 
-  when(cpu_debug_cycle > 20.U && cpu_debug_cycle < 50.U) {
-    printf(p"Time:${cpu_debug_cycle} | [PIPE-TRACE] \n")
-    
-    // 1. EX Stage 輸出: 檢查 MUX 是否選到了 BitNet 的結果 
-    printf(p"  EX_Out   : ALU_Res=${ex.io.mem_alu_result}  | BNRV_Sel=${id2ex.io.output_alu_bnrv}\n")
-    
-    // 2. EX/MEM Pipeline Register: 檢查資料是否順利進入 MEM 階段
-    printf(p"  MEM_In   : ALU_Res=${ex2mem.io.output_alu_result} | RegWrEn=${ex2mem.io.output_regs_write_enable} | Dest=x${ex2mem.io.output_regs_write_address}\n")
-    
-    // 3. MEM/WB Pipeline Register: 檢查資料是否順利進入 WB 階段
-    printf(p"  WB_In    : ALU_Res=${mem2wb.io.output_alu_result} | RegWrEn=${mem2wb.io.output_regs_write_enable} | Src=${mem2wb.io.output_regs_write_source}\n")
-    
-    // 4. WB Stage 寫入: 最終寫回暫存器的值
-    printf(p"  WB_Final : Data=${wb.io.regs_write_data} | WriteEn=${regs.io.write_enable}\n")
-    printf(p"----------------------------------------------------------------\n")
+  when(regs.io.write_enable && regs.io.write_address =/= 0.U ) {
+    printf(p"Time:${cpu_debug_cycle} | [WB-Final] RegFile Write! Reg:x${regs.io.write_address} | Data:${regs.io.write_data}\n")
   }
 }
