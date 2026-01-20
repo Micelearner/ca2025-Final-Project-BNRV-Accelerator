@@ -67,7 +67,7 @@ class CPU(val implementation: Int = ImplementationType.FiveStageFinal) extends M
           bn_req_read   := true.B
           bn_req_addr   := BN_STATUS_ADDR
           
-          when(axi_master.io.bundle.busy) {
+          when(!axi_master.io.bundle.busy) {
             bn_state := sBnReadWait
           }
         }
